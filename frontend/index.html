@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vegas Vigilância — Central CFTV</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="logo">
+      <img src="../assets/logo-vegas.png" alt="Vegas Vigilância"
+           onerror="this.style.display='none';document.getElementById('fb').style.display='grid'">
+      <div id="fb" class="fallback" style="display:none">V</div>
+      <div class="brand">
+        <b>Vegas Vigilância</b>
+        <span>Central CFTV</span>
+      </div>
+    </div>
+    <h1>Acesso da Operadora</h1>
+    <p class="sub">Monitoramento &amp; Segurança Eletrônica</p>
+
+    <div id="alert" class="alert err"></div>
+
+    <div class="field">
+      <label>Usuário</label>
+      <input id="usuario" type="text" autocomplete="username" placeholder="seu usuário">
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input id="senha" type="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button class="btn" id="btnEntrar" onclick="entrar()">Entrar</button>
+  </div>
+</div>
+
+<div class="loading" id="loading"><div class="spinner"></div></div>
+
+<script src="js/config.js"></script>
+<script>
+  if (localStorage.getItem('vegas_session')) location.href = 'dashboard.html';
+
+  const $ = id => document.getElementById(id);
+  function showErr(msg){ const a=$('alert'); a.textContent=msg; a.style.display='block'; }
+
+  async function entrar(){
+    const usuario = $('usuario').value.trim();
+    const senha = $('senha').value;
+    if(!usuario || !senha){ showErr('Preencha usuário e senha.'); return; }
+    $('alert').style.display='none';
+    $('loading').classList.add('show');
+    $('btnEntrar').disabled = true;
+    try{
+      const r = await api('login', { usuario, senha });
+      if(r.ok){
+        localStorage.setItem('vegas_session', r.session);
+        localStorage.setItem('vegas_nome', r.nome || usuario);
+        location.href = 'dashboard.html';
+      }else{
+        showErr(r.error==='CREDENCIAIS_INVALIDAS' ? 'Usuário ou senha incorretos.' : 'Não foi possível entrar. Verifique a configuração da API.');
+      }
+    }catch(e){
+      showErr('Erro de conexão com o servidor. Confira a URL da API em config.js.');
+    }finally{
+      $('loading').classList.remove('show');
+      $('btnEntrar').disabled = false;
+    }
+  }
+  $('senha').addEventListener('keydown', e=>{ if(e.key==='Enter') entrar(); });
+</script>
+</body>
+</html>
