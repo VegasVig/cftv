@@ -3,7 +3,7 @@
    (Implantar > App da Web > copiar URL). Nada sensível fica
    aqui: é só o endereço público da sua API.
    ========================================================= */
-const API_URL = 'https://script.google.com/macros/s/AKfycby3hZrR4jNmVDImAVDO5PJMt38Zwd4-2rMJ3uArx28_k5ZUKUvkftrs1iyTmsYweMVluw/exec';
+const API_URL = 'COLE_AQUI_A_URL_DO_APPS_SCRIPT/exec';
 
 /* Helper único de chamada à API. */
 async function api(action, data = {}) {

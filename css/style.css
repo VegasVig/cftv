@@ -39,10 +39,12 @@ button{font-family:inherit;cursor:pointer}
 
 /* ---------- Logo ---------- */
 .logo{display:flex;align-items:center;gap:12px}
-.logo img{height:44px;width:auto;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
+.logo img{height:38px;max-width:170px;width:auto;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
 .logo .brand{line-height:1.1}
-.logo .brand b{display:block;font-size:16px;letter-spacing:.5px;color:var(--txt)}
-.logo .brand span{font-size:11px;letter-spacing:2px;color:var(--accent);text-transform:uppercase}
+.logo .brand b{display:block;font-size:14px;letter-spacing:.5px;color:var(--txt)}
+.logo .brand span{font-size:10px;letter-spacing:2px;color:var(--accent);text-transform:uppercase}
+/* Login e página do técnico: logo maior e centralizada */
+.login-card .logo img,.tech-header .logo img{height:56px;max-width:280px}
 
 /* Marca placeholder caso a imagem falhe */
 .logo .fallback{

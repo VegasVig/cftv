@@ -14,10 +14,10 @@ const ICONS = {
 
 function logoHTML(){
   return `<div class="logo">
-    <img src="../assets/logo-vegas.png" alt="Vegas"
+    <img src="assets/logo-vegas.png" alt="Vegas"
       onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
     <div class="fallback" style="display:none">V</div>
-    <div class="brand"><b>Vegas Vigilância</b><span>Central CFTV</span></div>
+    <div class="brand"><span>Central CFTV</span></div>
   </div>`;
 }
 

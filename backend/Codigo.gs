@@ -379,3 +379,18 @@ function hash_(str){
   const raw=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, str+SECRET_KEY);
   return raw.map(b=>('0'+(b&0xFF).toString(16)).slice(-2)).join('');
 }
+
+/*************************************************************************
+ * UTILITÁRIO PARA TROCAR A SENHA
+ * Como usar:
+ *   1. Troque 'MinhaNovaSenha123' pela senha que você quer.
+ *   2. No topo, selecione a função gerarMinhaSenha e clique em Executar.
+ *   3. Veja o "Registro de execução": copie o hash que aparecer.
+ *   4. Na planilha, aba Usuarios, cole esse hash na coluna SenhaHash
+ *      da linha do usuário. Pronto — entre com a senha nova (não o hash).
+ *************************************************************************/
+function gerarMinhaSenha() {
+  const senhaNova = 'MinhaNovaSenha123';   // <-- troque aqui
+  Logger.log('Hash da senha (copie a linha abaixo):');
+  Logger.log(hash_(senhaNova));
+}
