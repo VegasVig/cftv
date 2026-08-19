@@ -1,0 +1,3 @@
+Coloque aqui o arquivo real da logo com o nome EXATO: logo-vegas.png
+O sistema procura por assets/logo-vegas.png automaticamente.
+Enquanto não existir, aparece um "V" dourado como marca temporária.

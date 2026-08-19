@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Central CFTV</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app"></div>
+
+<script src="js/config.js"></script>
+<script src="js/ui.js"></script>
+<script>
+requireSession();
+document.getElementById('app').innerHTML = appShell();
+renderSidebar('dash');
+
+document.getElementById('main').innerHTML = `
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="hamburger" onclick="toggleMenu()">☰</button>
+      <div><h2>Dashboard</h2><div class="sub">Visão geral do monitoramento CFTV</div></div>
+    </div>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div style="display:grid;grid-template-columns:1fr;gap:20px">
+    <div>
+      <div class="section-title">Últimos clientes cadastrados</div>
+      <div id="ultimos"></div>
+    </div>
+  </div>
+`;
+
+function statCard(ico, num, lbl, cls=''){
+  return `<div class="stat ${cls}"><div class="ico">${ICONS[ico]}</div>
+    <div class="num">${num}</div><div class="lbl">${lbl}</div></div>`;
+}
+
+async function load(){
+  showLoading(true);
+  try{
+    const r = await api('stats');
+    if(!r.ok){ if(r.error==='NAO_AUTORIZADO'){logout();return;} toast('Erro ao carregar','err'); return; }
+    const s = r.stats;
+    document.getElementById('stats').innerHTML =
+      statCard('clients', s.totalClientes, 'Clientes cadastrados') +
+      statCard('shield', s.clientesAtivos, 'Clientes ativos','green') +
+      statCard('cam', s.totalCameras, 'Câmeras cadastradas','cyan') +
+      statCard('dash', s.totalCanais, 'Canais totais') +
+      statCard('link', s.linksAtivos, 'Links ativos','cyan') +
+      statCard('logs', s.linksExpirados, 'Links expirados');
+
+    const u = s.ultimosClientes||[];
+    document.getElementById('ultimos').innerHTML = u.length ? `
+      <div class="table-wrap"><table><thead><tr><th>Número</th><th>Nome</th><th></th></tr></thead>
+      <tbody>${u.map(c=>`<tr><td class="tag">${escapeHTML(c.NumeroCliente)}</td>
+        <td>${escapeHTML(c.Nome)}</td>
+        <td style="text-align:right"><a class="btn secondary sm" href="clientes.html?id=${encodeURIComponent(c.ID)}">Ver informações</a></td></tr>`).join('')}
+      </tbody></table></div>`
+      : `<div class="empty-state"><div class="ico">📋</div>Nenhum cliente cadastrado ainda.</div>`;
+  }catch(e){ toast('Falha de conexão','err'); }
+  finally{ showLoading(false); }
+}
+load();
+</script>
+</body>
+</html>

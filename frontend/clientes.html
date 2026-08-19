@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clientes — Central CFTV</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app"></div>
+
+<!-- LIGHTBOX foto -->
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('show')"><img id="lbimg" src=""></div>
+
+<!-- MODAL genérico -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <div class="modal-head"><h3 id="modalTitle"></h3><button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/ui.js"></script>
+<script>
+requireSession();
+document.getElementById('app').innerHTML = appShell();
+renderSidebar('clients');
+
+let CLIENTES = [];       // cache da lista
+let currentTimer = null; // timer do link ativo
+
+document.getElementById('main').innerHTML = `
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="hamburger" onclick="toggleMenu()">☰</button>
+      <div><h2>Clientes</h2><div class="sub"><span id="count">0</span> cliente(s) cadastrado(s)</div></div>
+    </div>
+    <button class="btn sm" style="background:linear-gradient(135deg,var(--accent),var(--accent-2))" onclick="openForm()">
+      ${ICONS.plus} Novo Cliente</button>
+  </div>
+  <div class="toolbar">
+    <div class="search">${ICONS.search}
+      <input id="q" type="text" placeholder="Buscar por número, nome, marca, modelo…" oninput="filtrar()">
+    </div>
+  </div>
+  <div class="table-wrap" id="tableWrap"></div>
+  <div class="card-list" id="cardList"></div>
+`;
+
+/* ---------- LISTAGEM ---------- */
+async function load(){
+  showLoading(true);
+  try{
+    const r = await api('list');
+    if(!r.ok){ if(r.error==='NAO_AUTORIZADO'){logout();return;} toast('Erro ao carregar','err'); return; }
+    CLIENTES = r.clientes || [];
+    render(CLIENTES);
+    document.getElementById('count').textContent = CLIENTES.length;
+    // abre direto se veio ?id= da dashboard
+    const id = new URLSearchParams(location.search).get('id');
+    if(id) openDetalhes(id);
+  }catch(e){ toast('Falha de conexão','err'); }
+  finally{ showLoading(false); }
+}
+
+function filtrar(){
+  const q = document.getElementById('q').value.toLowerCase().trim();
+  if(!q){ render(CLIENTES); return; }
+  render(CLIENTES.filter(c => Object.values(c).some(v=>String(v).toLowerCase().includes(q))));
+}
+
+function statusBadge(s){ const inativo=String(s)==='Inativo';
+  return `<span class="badge ${inativo?'inativo':'ativo'}">${inativo?'Inativo':'Ativo'}</span>`; }
+
+function render(list){
+  const tw = document.getElementById('tableWrap');
+  const cl = document.getElementById('cardList');
+  if(!list.length){
+    tw.innerHTML = cl.innerHTML = `<div class="empty-state"><div class="ico">🔍</div>Nenhum cliente encontrado.</div>`;
+    return;
+  }
+  tw.innerHTML = `<table><thead><tr>
+    <th>Cliente</th><th>Nome</th><th>Equipamento</th><th>Canais</th><th>Câmeras</th><th>Status</th><th></th>
+    </tr></thead><tbody>${list.map(c=>`
+    <tr>
+      <td class="tag">${escapeHTML(c.NumeroCliente)}</td>
+      <td>${escapeHTML(c.Nome)}</td>
+      <td>${escapeHTML(c.Marca)} ${escapeHTML(c.Modelo)}</td>
+      <td>${escapeHTML(c.Canais)}</td>
+      <td>${escapeHTML(c.CamerasFuncionando)}/${escapeHTML(c.CamerasInstaladas)}</td>
+      <td>${statusBadge(c.Status)}</td>
+      <td style="text-align:right"><button class="btn secondary sm" onclick="openDetalhes('${c.ID}')">Ver informações</button></td>
+    </tr>`).join('')}</tbody></table>`;
+
+  cl.innerHTML = list.map(c=>`
+    <div class="ccard">
+      <div class="row"><b class="tag">${escapeHTML(c.NumeroCliente)}</b>${statusBadge(c.Status)}</div>
+      <div class="row"><span>Nome</span><b>${escapeHTML(c.Nome)}</b></div>
+      <div class="row"><span>Equipamento</span>${escapeHTML(c.Marca)} ${escapeHTML(c.Modelo)}</div>
+      <div class="row"><span>Câmeras</span>${escapeHTML(c.CamerasFuncionando)}/${escapeHTML(c.CamerasInstaladas)} · ${escapeHTML(c.Canais)} canais</div>
+      <button class="btn secondary sm" style="width:100%;margin-top:10px" onclick="openDetalhes('${c.ID}')">Ver informações</button>
+    </div>`).join('');
+}
+
+/* ---------- MODAL helpers ---------- */
+function openModal(title, body, foot){
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = body;
+  document.getElementById('modalFoot').innerHTML = foot || '';
+  document.getElementById('modalBg').classList.add('show');
+}
+function closeModal(){
+  document.getElementById('modalBg').classList.remove('show');
+  if(currentTimer){ clearInterval(currentTimer); currentTimer=null; }
+}
+
+/* ---------- FORM CADASTRO/EDIÇÃO ---------- */
+function openForm(cli){
+  const c = cli || {};
+  const isEdit = !!cli;
+  const v = k => escapeHTML(c[k]!=null?c[k]:'');
+  const sel = (val,opt)=> String(val)===opt?'selected':'';
+  openModal(isEdit?'Editar Cliente':'Novo Cliente', `
+    <div class="section-title">Identificação</div>
+    <div class="grid2">
+      <div class="field"><label>Número do cliente *</label><input id="f_num" value="${v('NumeroCliente')}"></div>
+      <div class="field"><label>Nome do cliente *</label><input id="f_nome" value="${v('Nome')}"></div>
+    </div>
+    <div class="field"><label>Endereço</label><input id="f_end" value="${v('Endereco')}"></div>
+    <div class="field"><label>Observações</label><textarea id="f_obs" rows="2">${v('Observacoes')}</textarea></div>
+
+    <div class="section-title">Equipamento CFTV</div>
+    <div class="grid2">
+      <div class="field"><label>Marca</label><input id="f_marca" value="${v('Marca')}"></div>
+      <div class="field"><label>Modelo</label><input id="f_modelo" value="${v('Modelo')}"></div>
+      <div class="field"><label>Tipo</label><select id="f_tipo">
+        <option ${sel(c.Tipo,'DVR')}>DVR</option><option ${sel(c.Tipo,'NVR')}>NVR</option><option ${sel(c.Tipo,'Outro')}>Outro</option>
+      </select></div>
+      <div class="field"><label>Quantidade de canais</label><input id="f_canais" type="number" value="${v('Canais')}"></div>
+      <div class="field"><label>Câmeras instaladas</label><input id="f_cinst" type="number" value="${v('CamerasInstaladas')}"></div>
+      <div class="field"><label>Câmeras em funcionamento</label><input id="f_cfunc" type="number" value="${v('CamerasFuncionando')}"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Usuário do sistema</label><input id="f_user" value="${v('UsuarioCFTV')}"></div>
+      <div class="field"><label>Senha do sistema</label><input id="f_pass" value="${v('SenhaCFTV')}"></div>
+      <div class="field"><label>IP / URL de acesso</label><input id="f_ip" value="${v('IP_URL')}"></div>
+      <div class="field"><label>Porta</label><input id="f_porta" value="${v('Porta')}"></div>
+    </div>
+    <div class="field"><label>Observações técnicas</label><textarea id="f_obst" rows="2">${v('ObsTecnicas')}</textarea></div>
+
+    <div class="section-title">Foto do sistema</div>
+    <div class="field">
+      <label>Foto do quadro/painel das câmeras em funcionamento</label>
+      <input id="f_foto" type="file" accept="image/*" onchange="previewFoto(event)">
+      <div class="photo-frame" id="fotoPrev" style="${c.Foto?'':'display:none'}">
+        ${c.Foto?`<img src="${c.Foto}">`:''}
+      </div>
+      <input type="hidden" id="f_foto_data" value="${c.Foto?escapeHTML(c.Foto):''}">
+      <small style="color:var(--txt-dim)">A imagem é reduzida automaticamente antes de salvar.</small>
+    </div>
+  `, `
+    <button class="btn ghost sm" onclick="closeModal()">Cancelar</button>
+    <button class="btn sm" style="background:linear-gradient(135deg,var(--accent),var(--accent-2))"
+      onclick="salvar('${isEdit?c.ID:''}')">${isEdit?'Salvar alterações':'Cadastrar cliente'}</button>
+  `);
+}
+
+/* Redimensiona a foto no navegador antes de enviar (mantém a planilha leve) */
+function previewFoto(ev){
+  const file = ev.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const max=900; let {width,height}=img;
+      if(width>max){ height=height*max/width; width=max; }
+      const cv=document.createElement('canvas'); cv.width=width; cv.height=height;
+      cv.getContext('2d').drawImage(img,0,0,width,height);
+      const data = cv.toDataURL('image/jpeg',0.7);
+      document.getElementById('f_foto_data').value = data;
+      const fp=document.getElementById('fotoPrev');
+      fp.style.display='grid'; fp.innerHTML=`<img src="${data}">`;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function salvar(id){
+  const g = k => (document.getElementById(k)||{}).value || '';
+  const cliente = {
+    NumeroCliente:g('f_num'), Nome:g('f_nome'), Endereco:g('f_end'), Observacoes:g('f_obs'),
+    Marca:g('f_marca'), Modelo:g('f_modelo'), Tipo:g('f_tipo'), Canais:g('f_canais'),
+    CamerasInstaladas:g('f_cinst'), CamerasFuncionando:g('f_cfunc'),
+    UsuarioCFTV:g('f_user'), SenhaCFTV:g('f_pass'), IP_URL:g('f_ip'), Porta:g('f_porta'),
+    ObsTecnicas:g('f_obst'), Foto:g('f_foto_data')
+  };
+  if(!cliente.NumeroCliente || !cliente.Nome){ toast('Preencha número e nome.','err'); return; }
+  closeModal(); showLoading(true);
+  try{
+    const r = id ? await api('update',{id,cliente}) : await api('create',{cliente});
+    if(r.ok){ toast(id?'Cliente atualizado!':'Cliente cadastrado!'); await load(); }
+    else toast('Erro ao salvar','err');
+  }catch(e){ toast('Falha de conexão','err'); }
+  finally{ showLoading(false); }
+}
+
+/* ---------- DETALHES ---------- */
+async function openDetalhes(id){
+  showLoading(true);
+  try{
+    const r = await api('get',{id});
+    if(!r.ok){ toast('Cliente não encontrado','err'); return; }
+    const c = r.cliente;
+    const di = (k,val)=>`<div class="detail-item"><div class="k">${k}</div><div class="v">${escapeHTML(val||'—')}</div></div>`;
+    openModal(`Cliente ${escapeHTML(c.NumeroCliente)} — ${escapeHTML(c.Nome)}`, `
+      <div class="section-title">Dados do cliente</div>
+      <div class="detail-grid">
+        ${di('Número', c.NumeroCliente)}${di('Nome', c.Nome)}
+        ${di('Endereço', c.Endereco)}${di('Status', c.Status)}
+      </div>
+      ${c.Observacoes?`<div style="margin-top:12px">${di('Observações', c.Observacoes)}</div>`:''}
+
+      <div class="section-title">Equipamento</div>
+      <div class="detail-grid">
+        ${di('Marca', c.Marca)}${di('Modelo', c.Modelo)}${di('Tipo', c.Tipo)}
+        ${di('Canais', c.Canais)}${di('Câmeras instaladas', c.CamerasInstaladas)}${di('Câmeras funcionando', c.CamerasFuncionando)}
+        ${di('IP / URL', c.IP_URL)}${di('Porta', c.Porta)}
+      </div>
+      ${c.ObsTecnicas?`<div style="margin-top:12px">${di('Obs. técnicas', c.ObsTecnicas)}</div>`:''}
+
+      <div class="section-title">Credenciais de acesso</div>
+      <div class="cred-box">
+        <div class="cred-row"><div class="k">Usuário</div><div class="val">${escapeHTML(c.UsuarioCFTV||'—')}</div></div>
+        <div class="cred-row"><div class="k">Senha</div>
+          <div class="val" id="senhaVal" data-real="${escapeHTML(c.SenhaCFTV||'')}">••••••••</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button class="btn secondary sm" onclick="toggleSenha()">Mostrar senha</button>
+          <button class="btn secondary sm" onclick="copiarSenha()">Copiar senha</button>
+        </div>
+      </div>
+
+      <div class="section-title">Foto do sistema</div>
+      ${c.Foto
+        ? `<div class="photo-frame" onclick="ampliar('${'foto_'+c.ID}')"><img id="foto_${c.ID}" src="${c.Foto}"></div>`
+        : `<div class="photo-frame"><div class="photo-empty">Nenhuma foto cadastrada</div></div>`}
+    `, `
+      <button class="btn ghost sm" onclick='openForm(${JSON.stringify(c).replace(/'/g,"&#39;")})'>Editar</button>
+      <button class="btn cyan sm" onclick="gerarLink('${c.ID}','${escapeHTML(c.NumeroCliente)}','${escapeHTML(c.Nome).replace(/'/g,"")}')">${ICONS.link} Gerar acesso para técnico</button>
+    `);
+  }catch(e){ toast('Falha de conexão','err'); }
+  finally{ showLoading(false); }
+}
+
+function toggleSenha(){
+  const el = document.getElementById('senhaVal');
+  const real = el.getAttribute('data-real');
+  if(el.textContent==='••••••••'){ el.textContent = real||'—'; event.target.textContent='Ocultar senha'; }
+  else { el.textContent='••••••••'; event.target.textContent='Mostrar senha'; }
+}
+function copiarSenha(){
+  const real = document.getElementById('senhaVal').getAttribute('data-real');
+  navigator.clipboard.writeText(real||'').then(()=>toast('Senha copiada!','info'));
+}
+function ampliar(imgId){
+  const src = document.getElementById(imgId).src;
+  document.getElementById('lbimg').src = src;
+  document.getElementById('lightbox').classList.add('show');
+}
+
+/* ---------- GERAR LINK DO TÉCNICO ---------- */
+async function gerarLink(id, numero, nome){
+  showLoading(true);
+  try{
+    const r = await api('genLink',{id});
+    if(!r.ok){ toast('Erro ao gerar link','err'); return; }
+    const base = location.href.replace(/clientes\.html.*$/,'');
+    const link = base + 'tecnico.html?t=' + r.token;
+    const msg = `Olá, segue o acesso temporário às informações do sistema CFTV do cliente ${numero} - ${nome}.\n\nEste link é válido por 30 minutos:\n\n${link}\n\nVegas Vigilância.`;
+    const wa = 'https://wa.me/?text=' + encodeURIComponent(msg);
+
+    openModal('Acesso temporário gerado', `
+      <p style="color:var(--txt-dim);font-size:14px;margin-top:0">
+        Link exclusivo para o cliente <b class="tag">${numero}</b>. Válido por 30 minutos e restrito a este cliente.</p>
+      <div class="link-result">
+        <div style="font-size:12px;color:var(--txt-dim);text-transform:uppercase;letter-spacing:1px">Este acesso expira em</div>
+        <div class="timer" id="timer">30:00</div>
+        <div class="link-url" id="linkUrl">${link}</div>
+        <div class="link-actions">
+          <button class="btn secondary sm" onclick="copiarLink('${link.replace(/'/g,"")}')">Copiar link</button>
+          <a class="btn sm" style="background:#25D366;color:#052e16;text-align:center;line-height:1.6;text-decoration:none" href="${wa}" target="_blank">Enviar pelo WhatsApp</a>
+          <button class="btn danger sm" onclick="revogar('${r.token}')">Revogar acesso</button>
+        </div>
+      </div>
+    `, `<button class="btn ghost sm" onclick="closeModal()">Fechar</button>`);
+
+    startTimer(new Date(r.expiraEm));
+  }catch(e){ toast('Falha de conexão','err'); }
+  finally{ showLoading(false); }
+}
+
+function startTimer(expira){
+  if(currentTimer) clearInterval(currentTimer);
+  const el = ()=>document.getElementById('timer');
+  const tick = ()=>{
+    const t = el(); if(!t){ clearInterval(currentTimer); return; }
+    const diff = Math.floor((expira - new Date())/1000);
+    if(diff<=0){ t.textContent='Este link expirou.'; t.className='timer dead'; clearInterval(currentTimer); return; }
+    const m=String(Math.floor(diff/60)).padStart(2,'0'), s=String(diff%60).padStart(2,'0');
+    t.textContent=`${m}:${s}`;
+    t.className = 'timer' + (diff<300?' warn':'');
+  };
+  tick(); currentTimer=setInterval(tick,1000);
+}
+function copiarLink(l){ navigator.clipboard.writeText(l).then(()=>toast('Link copiado!','info')); }
+async function revogar(token){
+  showLoading(true);
+  try{
+    const r = await api('revoke',{token});
+    if(r.ok){ toast('Acesso revogado!'); closeModal(); }
+    else toast('Erro ao revogar','err');
+  }catch(e){ toast('Falha de conexão','err'); }
+  finally{ showLoading(false); }
+}
+
+load();
+</script>
+</body>
+</html>

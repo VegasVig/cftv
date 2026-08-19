@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Histórico — Central CFTV</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app"></div>
+
+<script src="js/config.js"></script>
+<script src="js/ui.js"></script>
+<script>
+requireSession();
+document.getElementById('app').innerHTML = appShell();
+renderSidebar('logs');
+
+document.getElementById('main').innerHTML = `
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="hamburger" onclick="toggleMenu()">☰</button>
+      <div><h2>Histórico de acessos</h2><div class="sub">Registro de ações e acessos técnicos</div></div>
+    </div>
+  </div>
+  <div class="table-wrap" id="tableWrap"></div>
+  <div class="card-list" id="cardList"></div>
+`;
+
+const ACAO_LABEL = {
+  LOGIN:'Login', CADASTRO:'Cadastro', ATUALIZACAO:'Atualização', DESATIVACAO:'Desativação',
+  VER_CREDENCIAIS:'Consulta de dados', GEROU_LINK:'Gerou link', REVOGOU_LINK:'Revogou link',
+  ACESSO_TECNICO:'Acesso técnico'
+};
+
+function fmt(d){ try{ return new Date(d).toLocaleString('pt-BR'); }catch(e){ return d; } }
+
+async function load(){
+  showLoading(true);
+  try{
+    const r = await api('logs');
+    if(!r.ok){ if(r.error==='NAO_AUTORIZADO'){logout();return;} toast('Erro ao carregar','err'); return; }
+    const logs = r.logs||[];
+    const tw=document.getElementById('tableWrap'), cl=document.getElementById('cardList');
+    if(!logs.length){ tw.innerHTML=cl.innerHTML=`<div class="empty-state"><div class="ico">📜</div>Nenhum registro ainda.</div>`; return; }
+    tw.innerHTML = `<table><thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Cliente</th><th>Detalhe</th></tr></thead>
+      <tbody>${logs.map(l=>`<tr>
+        <td>${fmt(l.DataHora)}</td><td>${escapeHTML(l.Operadora)}</td>
+        <td>${escapeHTML(ACAO_LABEL[l.Acao]||l.Acao)}</td>
+        <td class="tag">${escapeHTML(l.ClienteID)}</td><td>${escapeHTML(l.Detalhe)}</td>
+      </tr>`).join('')}</tbody></table>`;
+    cl.innerHTML = logs.map(l=>`<div class="ccard">
+      <div class="row"><b>${escapeHTML(ACAO_LABEL[l.Acao]||l.Acao)}</b><span>${fmt(l.DataHora)}</span></div>
+      <div class="row"><span>Usuário</span>${escapeHTML(l.Operadora)}</div>
+      <div class="row"><span>Cliente</span><span class="tag">${escapeHTML(l.ClienteID)}</span></div>
+      ${l.Detalhe?`<div class="row"><span>Detalhe</span>${escapeHTML(l.Detalhe)}</div>`:''}
+    </div>`).join('');
+  }catch(e){ toast('Falha de conexão','err'); }
+  finally{ showLoading(false); }
+}
+load();
+</script>
+</body>
+</html>
