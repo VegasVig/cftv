@@ -117,9 +117,12 @@ function closeModal(){
 }
 
 /* ---------- FORM CADASTRO/EDIÇÃO ---------- */
+let _fotos = [];   // fotos do cliente em edição (data URLs)
 function openForm(cli){
   const c = cli || {};
   const isEdit = !!cli;
+  // Carrega fotos existentes: FotosList (novo) ou Foto (antigo).
+  _fotos = Array.isArray(c.FotosList) ? c.FotosList.slice() : (c.Foto ? [c.Foto] : []);
   const v = k => escapeHTML(c[k]!=null?c[k]:'');
   const sel = (val,opt)=> String(val)===opt?'selected':'';
   openModal(isEdit?'Editar Cliente':'Novo Cliente', `
@@ -150,43 +153,56 @@ function openForm(cli){
     </div>
     <div class="field"><label>Observações técnicas</label><textarea id="f_obst" rows="2">${v('ObsTecnicas')}</textarea></div>
 
-    <div class="section-title">Foto do sistema</div>
+    <div class="section-title">Fotos do sistema</div>
     <div class="field">
-      <label>Foto do quadro/painel das câmeras em funcionamento</label>
-      <input id="f_foto" type="file" accept="image/*" onchange="previewFoto(event)">
-      <div class="photo-frame" id="fotoPrev" style="${c.Foto?'':'display:none'}">
-        ${c.Foto?`<img src="${c.Foto}">`:''}
-      </div>
-      <input type="hidden" id="f_foto_data" value="${c.Foto?escapeHTML(c.Foto):''}">
-      <small style="color:var(--txt-dim)">A imagem é reduzida automaticamente antes de salvar.</small>
+      <label>Fotos dos quadros/painéis (um cliente pode ter vários DVRs)</label>
+      <input id="f_foto" type="file" accept="image/*" multiple onchange="addFotos(event)">
+      <div class="fotos-grid" id="fotosGrid"></div>
+      <small style="color:var(--txt-dim)">Pode selecionar várias de uma vez. Cada imagem é reduzida automaticamente antes de salvar. Clique no ✕ para remover.</small>
     </div>
   `, `
     <button class="btn ghost sm" onclick="closeModal()">Cancelar</button>
     <button class="btn sm" style="background:linear-gradient(135deg,var(--accent),var(--accent-2))"
       onclick="salvar('${isEdit?c.ID:''}')">${isEdit?'Salvar alterações':'Cadastrar cliente'}</button>
   `);
+  renderFotos();
 }
 
-/* Redimensiona a foto no navegador antes de enviar (mantém a planilha leve) */
-function previewFoto(ev){
-  const file = ev.target.files[0]; if(!file) return;
-  const reader = new FileReader();
-  reader.onload = e=>{
-    const img = new Image();
-    img.onload = ()=>{
-      const max=900; let {width,height}=img;
-      if(width>max){ height=height*max/width; width=max; }
-      const cv=document.createElement('canvas'); cv.width=width; cv.height=height;
-      cv.getContext('2d').drawImage(img,0,0,width,height);
-      const data = cv.toDataURL('image/jpeg',0.7);
-      document.getElementById('f_foto_data').value = data;
-      const fp=document.getElementById('fotoPrev');
-      fp.style.display='grid'; fp.innerHTML=`<img src="${data}">`;
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
+/* Mostra as miniaturas das fotos já adicionadas, com botão de remover. */
+function renderFotos(){
+  const grid = document.getElementById('fotosGrid');
+  if(!grid) return;
+  if(!_fotos.length){ grid.innerHTML = '<div class="photo-empty" style="grid-column:1/-1">Nenhuma foto adicionada</div>'; return; }
+  grid.innerHTML = _fotos.map((src,i)=>
+    `<div class="foto-thumb"><img src="${src}">
+       <button type="button" class="foto-del" onclick="removeFoto(${i})" title="Remover">✕</button></div>`
+  ).join('');
 }
+
+/* Redimensiona cada foto no navegador antes de guardar (mantém a planilha leve). */
+function addFotos(ev){
+  const files = Array.from(ev.target.files||[]);
+  if(!files.length) return;
+  let pend = files.length;
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const max=900; let {width,height}=img;
+        if(width>max){ height=height*max/width; width=max; }
+        const cv=document.createElement('canvas'); cv.width=width; cv.height=height;
+        cv.getContext('2d').drawImage(img,0,0,width,height);
+        _fotos.push(cv.toDataURL('image/jpeg',0.7));
+        if(--pend===0) renderFotos(); else renderFotos();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  ev.target.value = ''; // permite re-selecionar o mesmo arquivo
+}
+function removeFoto(i){ _fotos.splice(i,1); renderFotos(); }
 
 async function salvar(id){
   const g = k => (document.getElementById(k)||{}).value || '';
@@ -195,7 +211,7 @@ async function salvar(id){
     Marca:g('f_marca'), Modelo:g('f_modelo'), Tipo:g('f_tipo'), Canais:g('f_canais'),
     CamerasInstaladas:g('f_cinst'), CamerasFuncionando:g('f_cfunc'),
     UsuarioCFTV:g('f_user'), SenhaCFTV:g('f_pass'), IP_URL:g('f_ip'), Porta:g('f_porta'),
-    ObsTecnicas:g('f_obst'), Foto:g('f_foto_data')
+    ObsTecnicas:g('f_obst'), Fotos:_fotos
   };
   if(!cliente.NumeroCliente || !cliente.Nome){ toast('Preencha número e nome.','err'); return; }
   closeModal(); showLoading(true);
@@ -243,10 +259,12 @@ async function openDetalhes(id){
         </div>
       </div>
 
-      <div class="section-title">Foto do sistema</div>
-      ${c.Foto
-        ? `<div class="photo-frame" onclick="ampliar('${'foto_'+c.ID}')"><img id="foto_${c.ID}" src="${c.Foto}"></div>`
-        : `<div class="photo-frame"><div class="photo-empty">Nenhuma foto cadastrada</div></div>`}
+      <div class="section-title">Fotos do sistema</div>
+      ${(()=>{ const fotos = Array.isArray(c.FotosList)&&c.FotosList.length?c.FotosList:(c.Foto?[c.Foto]:[]);
+        return fotos.length
+          ? `<div class="fotos-grid">${fotos.map((src,i)=>`<div class="foto-thumb" onclick="ampliarSrc('${src.replace(/'/g,"\\'")}')"><img src="${src}"></div>`).join('')}</div>`
+          : `<div class="photo-frame"><div class="photo-empty">Nenhuma foto cadastrada</div></div>`;
+      })()}
     `, `
       <button class="btn ghost sm" onclick='openForm(${JSON.stringify(c).replace(/'/g,"&#39;")})'>Editar</button>
       <button class="btn cyan sm" onclick="gerarLink('${c.ID}','${escapeHTML(c.NumeroCliente)}','${escapeHTML(c.Nome).replace(/'/g,"")}')">${ICONS.link} Gerar acesso para técnico</button>
@@ -267,6 +285,9 @@ function copiarSenha(){
 }
 function ampliar(imgId){
   const src = document.getElementById(imgId).src;
+  ampliarSrc(src);
+}
+function ampliarSrc(src){
   document.getElementById('lbimg').src = src;
   document.getElementById('lightbox').classList.add('show');
 }

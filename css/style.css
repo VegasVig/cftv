@@ -194,7 +194,12 @@ tbody tr:hover{background:var(--panel-2)}
 .photo-frame{margin-top:10px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg-2);
   display:grid;place-items:center;min-height:120px;cursor:zoom-in}
 .photo-frame img{max-width:100%;display:block}
-.photo-empty{color:var(--txt-dim);font-size:13px;padding:30px}
+.photo-empty{color:var(--txt-dim);font-size:13px;padding:30px;text-align:center}
+.fotos-grid{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.foto-thumb{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg-2);aspect-ratio:4/3;cursor:zoom-in}
+.foto-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.foto-del{position:absolute;top:4px;right:4px;width:26px;height:26px;border:none;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-size:14px;line-height:1;cursor:pointer;display:grid;place-items:center}
+.foto-del:hover{background:#ef4444}
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;place-items:center;z-index:200;cursor:zoom-out;padding:20px}
 .lightbox.show{display:grid}
 .lightbox img{max-width:95%;max-height:95%}
@@ -252,4 +257,34 @@ tbody tr:hover{background:var(--panel-2)}
 @media(max-width:420px){
   .topbar h2{font-size:19px}
   .stat .num{font-size:24px}
+}
+
+/* ===== Tela do técnico: credenciais protegidas ===== */
+.no-copy, .no-copy *{
+  -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+}
+.cred-hint{font-size:12px;color:var(--txt-dim);margin:8px 0 0}
+.val.secret{letter-spacing:2px;font-family:monospace}
+.val.secret.revealed{letter-spacing:normal;color:var(--accent,#e6b800);font-weight:700}
+.reveal-btn{touch-action:none}
+
+/* Evita cache de imagem "arrastável" nas fotos do técnico */
+.tech-body img{ -webkit-user-drag:none; user-drag:none; -webkit-touch-callout:none; }
+
+/* Cortina de proteção ao sair do app / tentar capturar */
+#blackout{
+  position:fixed; inset:0; background:#000; z-index:9999;
+  display:none; place-items:center; text-align:center; color:#888; font-size:16px;
+}
+#blackout.show{ display:grid; }
+#blackout small{ color:#555; font-size:13px; }
+
+/* Ao imprimir, esconde tudo (impede "salvar como PDF" com dados) */
+@media print{
+  body{ visibility:hidden !important; }
+  body::after{
+    content:"Impressão bloqueada por segurança."; visibility:visible;
+    position:fixed; inset:0; display:grid; place-items:center; font-size:20px; color:#000;
+  }
 }

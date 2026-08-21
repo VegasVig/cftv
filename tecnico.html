@@ -55,6 +55,7 @@ async function load(){
 
 function render(c, expira){
   const di = (k,val)=>`<div class="detail-item"><div class="k">${k}</div><div class="v">${escapeHTML(val||'—')}</div></div>`;
+  const fotos = Array.isArray(c.FotosList)&&c.FotosList.length ? c.FotosList : (c.Foto?[c.Foto]:[]);
   $('wrap').innerHTML = `
     <div class="tech-timer-bar">
       <div class="lbl">Este acesso expira em</div>
@@ -81,24 +82,60 @@ function render(c, expira){
 
     <div style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px">
       <div class="section-title">Credenciais</div>
-      <div class="cred-box">
-        <div class="cred-row"><div class="k">Usuário</div><div class="val">${escapeHTML(c.UsuarioCFTV||'—')}</div></div>
+      <div class="cred-box no-copy">
+        <div class="cred-row"><div class="k">Usuário</div>
+          <div class="val secret" id="userVal">••••••••</div></div>
         <div class="cred-row"><div class="k">Senha</div>
-          <div class="val" id="senhaVal" data-real="${escapeHTML(c.SenhaCFTV||'')}">••••••••</div></div>
+          <div class="val secret" id="senhaVal">••••••••</div></div>
+        <p class="cred-hint">🔒 Toque e segure em <b>Ver</b> para revelar. A cópia e a captura estão bloqueadas por segurança.</p>
         <div style="display:flex;gap:8px;margin-top:6px">
-          <button class="btn secondary sm" onclick="toggleSenha()">Mostrar senha</button>
-          <button class="btn secondary sm" onclick="copiar()">Copiar senha</button>
+          <button class="btn secondary sm reveal-btn" id="btnReveal">Ver credenciais</button>
         </div>
       </div>
     </div>
 
-    ${c.Foto?`<div style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px">
-      <div class="section-title">Foto do sistema</div>
-      <div class="photo-frame" onclick="ampliar()"><img id="foto" src="${c.Foto}"></div>
+    ${fotos.length?`<div style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px">
+      <div class="section-title">Fotos do sistema${fotos.length>1?' ('+fotos.length+')':''}</div>
+      <div class="fotos-grid">
+        ${fotos.map((src,i)=>`<div class="foto-thumb" onclick="ampliarSrc('${src.replace(/'/g,"\\'")}')"><img src="${src}"></div>`).join('')}
+      </div>
     </div>`:''}
   `;
+
+  // Guarda os valores reais fora do DOM visível.
+  _cred = { user: c.UsuarioCFTV||'—', pass: c.SenhaCFTV||'—' };
+  setupReveal();
   startTimer(expira);
 }
+
+let _cred = { user:'', pass:'' };
+let _revealTimer = null;
+
+/* Só revela enquanto o dedo/mouse está pressionado no botão. Ao soltar, oculta. */
+function setupReveal(){
+  const btn = $('btnReveal'); if(!btn) return;
+  const show = ()=>{
+    $('userVal').textContent = _cred.user;
+    $('senhaVal').textContent = _cred.pass;
+    $('userVal').classList.add('revealed');
+    $('senhaVal').classList.add('revealed');
+    // Auto-oculta após 15s como rede de segurança.
+    clearTimeout(_revealTimer);
+    _revealTimer = setTimeout(hide, 15000);
+  };
+  const hide = ()=>{
+    $('userVal').textContent = '••••••••';
+    $('senhaVal').textContent = '••••••••';
+    $('userVal').classList.remove('revealed');
+    $('senhaVal').classList.remove('revealed');
+    clearTimeout(_revealTimer);
+  };
+  // pressionar-e-segurar (toque e mouse)
+  btn.addEventListener('mousedown', show);
+  btn.addEventListener('touchstart', e=>{ e.preventDefault(); show(); }, {passive:false});
+  ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>btn.addEventListener(ev, hide));
+}
+function ampliarSrc(src){ $('lbimg').src=src; $('lightbox').classList.add('show'); }
 
 function startTimer(expira){
   const tick=()=>{
@@ -111,13 +148,58 @@ function startTimer(expira){
   };
   tick(); timer=setInterval(tick,1000);
 }
-function toggleSenha(){
-  const el=$('senhaVal'), real=el.getAttribute('data-real');
-  if(el.textContent==='••••••••'){ el.textContent=real||'—'; event.target.textContent='Ocultar senha'; }
-  else { el.textContent='••••••••'; event.target.textContent='Mostrar senha'; }
+function toggleSenha(){/* substituído por pressionar-e-segurar (setupReveal) */}
+
+/* ===== Proteções anti-captura / anti-cópia ===== */
+(function protecoes(){
+  // Bloqueia menu de contexto (botão direito / segurar).
+  document.addEventListener('contextmenu', e=>e.preventDefault());
+  // Bloqueia seleção e cópia.
+  document.addEventListener('selectstart', e=>e.preventDefault());
+  document.addEventListener('copy', e=>{ e.preventDefault(); });
+  document.addEventListener('cut', e=>{ e.preventDefault(); });
+  document.addEventListener('dragstart', e=>e.preventDefault());
+
+  // Bloqueia atalhos comuns de print/salvar/devtools.
+  document.addEventListener('keyup', e=>{ if(e.key==='PrintScreen') limparClipboard(); });
+  document.addEventListener('keydown', e=>{
+    const k = (e.key||'').toLowerCase();
+    if(e.key==='PrintScreen') { limparClipboard(); }
+    // Ctrl/Cmd + P (imprimir), S (salvar), C (copiar), U (fonte)
+    if((e.ctrlKey||e.metaKey) && ['p','s','c','u'].includes(k)){ e.preventDefault(); esconderTudo(); }
+    // F12 / Ctrl+Shift+I (devtools)
+    if(e.key==='F12' || ((e.ctrlKey||e.metaKey)&&e.shiftKey&&k==='i')){ e.preventDefault(); esconderTudo(); }
+  });
+
+  // Ao sair da aba/app ou perder foco (momento típico de screenshot), escurece.
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) blackout(true); else blackout(false); });
+  window.addEventListener('blur', ()=>blackout(true));
+  window.addEventListener('focus', ()=>blackout(false));
+
+  function limparClipboard(){
+    try{ navigator.clipboard.writeText(' '); }catch(_){}
+    esconderTudo();
+  }
+})();
+
+/* Reoculta credenciais imediatamente. */
+function esconderTudo(){
+  const u=$('userVal'), s=$('senhaVal');
+  if(u){ u.textContent='••••••••'; u.classList.remove('revealed'); }
+  if(s){ s.textContent='••••••••'; s.classList.remove('revealed'); }
 }
-function copiar(){ navigator.clipboard.writeText($('senhaVal').getAttribute('data-real')||''); event.target.textContent='Copiado!'; setTimeout(()=>event.target.textContent='Copiar senha',1500); }
-function ampliar(){ $('lbimg').src=$('foto').src; $('lightbox').classList.add('show'); }
+
+/* Cortina preta sobre a tela (impede screenshot útil quando sai do app). */
+function blackout(on){
+  let el = document.getElementById('blackout');
+  if(!el){
+    el = document.createElement('div'); el.id='blackout';
+    el.innerHTML = '<div>🔒 Conteúdo protegido<br><small>Volte ao aplicativo para visualizar</small></div>';
+    document.body.appendChild(el);
+  }
+  el.classList.toggle('show', !!on);
+  if(on) esconderTudo();
+}
 
 load();
 </script>

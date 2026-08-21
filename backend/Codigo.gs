@@ -39,8 +39,14 @@ function setup() {
     'ID','NumeroCliente','Nome','Endereco','Marca','Modelo','Tipo',
     'Canais','CamerasInstaladas','CamerasFuncionando','UsuarioCFTV','SenhaCFTV',
     'IP_URL','Porta','Foto','Observacoes','ObsTecnicas','Status',
-    'DataCadastro','UltimaAtualizacao'
+    'DataCadastro','UltimaAtualizacao','Fotos'
   ]);
+  // Migração: se a planilha já existia sem a coluna 'Fotos', adiciona.
+  const shCli = ss.getSheetByName(SH_CLIENTES);
+  const head = shCli.getRange(1,1,1,shCli.getLastColumn()).getValues()[0];
+  if (head.indexOf('Fotos') === -1) {
+    shCli.getRange(1, shCli.getLastColumn()+1).setValue('Fotos');
+  }
   ensureSheet_(ss, SH_USUARIOS, ['Usuario','SenhaHash','Nome','Ativo']);
   ensureSheet_(ss, SH_TOKENS,   ['Token','ClienteID','CriadoEm','ExpiraEm','Status','CriadoPor']);
   ensureSheet_(ss, SH_LOGS,     ['DataHora','Operadora','Acao','ClienteID','Detalhe']);
@@ -197,11 +203,13 @@ function createCliente_(req, user) {
   const c = req.cliente || {};
   const id = 'C' + Utilities.formatDate(new Date(),'GMT-3','yyyyMMddHHmmss');
   const now = new Date();
+  const fotosJson = fotosToStore_(c.Fotos);
+  const primeira = firstFoto_(c.Fotos) || s_(c.Foto);
   sh.appendRow([
     id, s_(c.NumeroCliente), s_(c.Nome), s_(c.Endereco), s_(c.Marca), s_(c.Modelo),
     s_(c.Tipo), s_(c.Canais), s_(c.CamerasInstaladas), s_(c.CamerasFuncionando),
-    s_(c.UsuarioCFTV), s_(c.SenhaCFTV), s_(c.IP_URL), s_(c.Porta), s_(c.Foto),
-    s_(c.Observacoes), s_(c.ObsTecnicas), c.Status||'Ativo', now, now
+    s_(c.UsuarioCFTV), s_(c.SenhaCFTV), s_(c.IP_URL), s_(c.Porta), primeira,
+    s_(c.Observacoes), s_(c.ObsTecnicas), c.Status||'Ativo', now, now, fotosJson
   ]);
   log_(user, 'CADASTRO', id, 'Cliente ' + s_(c.NumeroCliente));
   return { ok:true, id:id };
@@ -215,15 +223,22 @@ function updateCliente_(req, user) {
   for (let i=1; i<rows.length; i++) {
     if (String(rows[i][0]) === String(req.id)) {
       const r = i+1;
+      // Coluna 15 = Foto (primeira, compatibilidade), coluna 21 = Fotos (JSON com todas).
       const map = {
         2:c.NumeroCliente,3:c.Nome,4:c.Endereco,5:c.Marca,6:c.Modelo,7:c.Tipo,
         8:c.Canais,9:c.CamerasInstaladas,10:c.CamerasFuncionando,11:c.UsuarioCFTV,
-        12:c.SenhaCFTV,13:c.IP_URL,14:c.Porta,15:c.Foto,16:c.Observacoes,
+        12:c.SenhaCFTV,13:c.IP_URL,14:c.Porta,16:c.Observacoes,
         17:c.ObsTecnicas,18:c.Status
       };
       Object.keys(map).forEach(col => {
         if (map[col] !== undefined) sh.getRange(r, Number(col)).setValue(map[col]);
       });
+      if (c.Fotos !== undefined) {
+        sh.getRange(r, 21).setValue(fotosToStore_(c.Fotos));
+        sh.getRange(r, 15).setValue(firstFoto_(c.Fotos));
+      } else if (c.Foto !== undefined) {
+        sh.getRange(r, 15).setValue(c.Foto);
+      }
       sh.getRange(r, 20).setValue(new Date());
       log_(user, 'ATUALIZACAO', req.id, '');
       return { ok:true };
@@ -256,6 +271,8 @@ function readClientes_() {
   for (let i=1; i<rows.length; i++) {
     const o = {};
     head.forEach((h,j) => o[h] = rows[i][j]);
+    // Normaliza: sempre entrega um array FotosList com todas as fotos.
+    o.FotosList = parseFotos_(o.Fotos, o.Foto);
     out.push(o);
   }
   return out;
@@ -320,7 +337,7 @@ function tecnicoView_(req) {
         Marca:c.Marca, Modelo:c.Modelo, Tipo:c.Tipo, Canais:c.Canais,
         CamerasInstaladas:c.CamerasInstaladas, CamerasFuncionando:c.CamerasFuncionando,
         UsuarioCFTV:c.UsuarioCFTV, SenhaCFTV:c.SenhaCFTV, IP_URL:c.IP_URL,
-        Porta:c.Porta, Foto:c.Foto, ObsTecnicas:c.ObsTecnicas
+        Porta:c.Porta, Foto:c.Foto, FotosList:c.FotosList, ObsTecnicas:c.ObsTecnicas
       }};
     }
   }
@@ -369,6 +386,32 @@ function getStats_(req) {
 
 // ====== UTILS ======
 function s_(v){ return (v===undefined||v===null)?'':v; }
+
+// Fotos podem vir como array (novo) ou string única (antigo). Guardamos como JSON.
+function fotosToStore_(fotos){
+  const arr = normFotos_(fotos);
+  return arr.length ? JSON.stringify(arr) : '';
+}
+function firstFoto_(fotos){
+  const arr = normFotos_(fotos);
+  return arr.length ? arr[0] : '';
+}
+function normFotos_(fotos){
+  if (!fotos) return [];
+  if (Array.isArray(fotos)) return fotos.filter(function(x){ return x; });
+  // string única
+  return String(fotos) ? [String(fotos)] : [];
+}
+// Lê o que está na planilha (JSON da coluna Fotos ou, se vazio, a Foto antiga).
+function parseFotos_(fotosCell, fotoAntiga){
+  if (fotosCell) {
+    try {
+      const arr = JSON.parse(fotosCell);
+      if (Array.isArray(arr)) return arr.filter(function(x){ return x; });
+    } catch (_) {}
+  }
+  return fotoAntiga ? [String(fotoAntiga)] : [];
+}
 function randToken_(n){
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let t=''; const rnd=Utilities.getUuid().replace(/-/g,'');
