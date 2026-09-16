@@ -29,6 +29,7 @@ document.getElementById('app').innerHTML = appShell();
 renderSidebar('clients');
 
 let CLIENTES = [];       // cache da lista
+let _cliAtual = null;    // cliente aberto no modal de detalhes
 let currentTimer = null; // timer do link ativo
 
 document.getElementById('main').innerHTML = `
@@ -189,12 +190,12 @@ function addFotos(ev){
     reader.onload = e=>{
       const img = new Image();
       img.onload = ()=>{
-        const max=900; let {width,height}=img;
+        const max=1600; let {width,height}=img;
         if(width>max){ height=height*max/width; width=max; }
         const cv=document.createElement('canvas'); cv.width=width; cv.height=height;
         cv.getContext('2d').drawImage(img,0,0,width,height);
-        _fotos.push(cv.toDataURL('image/jpeg',0.7));
-        if(--pend===0) renderFotos(); else renderFotos();
+        _fotos.push(cv.toDataURL('image/jpeg',0.82));
+        pend--; renderFotos();
       };
       img.src = e.target.result;
     };
@@ -230,6 +231,7 @@ async function openDetalhes(id){
     const r = await api('get',{id});
     if(!r.ok){ toast('Cliente não encontrado','err'); return; }
     const c = r.cliente;
+    _cliAtual = c;
     const di = (k,val)=>`<div class="detail-item"><div class="k">${k}</div><div class="v">${escapeHTML(val||'—')}</div></div>`;
     openModal(`Cliente ${escapeHTML(c.NumeroCliente)} — ${escapeHTML(c.Nome)}`, `
       <div class="section-title">Dados do cliente</div>
@@ -266,7 +268,7 @@ async function openDetalhes(id){
           : `<div class="photo-frame"><div class="photo-empty">Nenhuma foto cadastrada</div></div>`;
       })()}
     `, `
-      <button class="btn ghost sm" onclick='openForm(${JSON.stringify(c).replace(/'/g,"&#39;")})'>Editar</button>
+      <button class="btn ghost sm" onclick="openForm(_cliAtual)">Editar</button>
       <button class="btn cyan sm" onclick="gerarLink('${c.ID}','${escapeHTML(c.NumeroCliente)}','${escapeHTML(c.Nome).replace(/'/g,"")}')">${ICONS.link} Gerar acesso para técnico</button>
     `);
   }catch(e){ toast('Falha de conexão','err'); }
