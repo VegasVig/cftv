@@ -39,8 +39,10 @@ function renderSidebar(active){
     ${nav}
     <div class="spacer"></div>
     <div class="user-box">Conectada como<b>${escapeHTML(nome)}</b></div>
+    ${window.temaBotaoHTML ? temaBotaoHTML() : ''}
     <div class="nav-item" onclick="logout()">${ICONS.logout}<span>Sair</span></div>
   `;
+  if (window.atualizarBotoesTema) atualizarBotoesTema();
 }
 
 function toggleMenu(){
