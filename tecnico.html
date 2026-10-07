@@ -4,27 +4,32 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Acesso Técnico — Vegas Vigilância</title>
-<link rel="stylesheet" href="css/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=20261007b">
 </head>
 <body class="tech-body">
 
 <div class="tech-header">
   <div class="logo">
-    <img src="./assets/logo-vegas.png" alt="Vegas"
+    <img class="emblem" src="assets/emblema-vegas.png" alt="Vegas Vigilância e Segurança"
       onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
     <div class="fallback" style="display:none">V</div>
-    <div class="brand"><b>Vegas Vigilância</b><span>Acesso Técnico CFTV</span></div>
+    <div class="brand"><img class="wordmark" src="assets/wordmark-vegas.png" alt="VEGAS"><span>Vigilância e segurança</span></div>
   </div>
-  <div class="tit">Acesso Técnico CFTV</div>
+  <div class="rule-title">Acesso técnico CFTV</div>
 </div>
 
 <div class="tech-wrap" id="wrap">
   <div style="text-align:center;padding:60px 0"><div class="spinner" style="margin:0 auto"></div></div>
 </div>
 
+<div class="page-sign"><b>VEGAS</b> VIGILÂNCIA E SEGURANÇA</div>
+
 <div class="lightbox" id="lightbox" onclick="this.classList.remove('show')"><img id="lbimg" src=""></div>
 
-<script src="js/config.js"></script>
+<script src="js/config.js?v=20261007b"></script>
 <script>
 const $ = id => document.getElementById(id);
 function escapeHTML(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }

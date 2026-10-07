@@ -13,12 +13,14 @@ const ICONS = {
 };
 
 function logoHTML(){
-  return `<div class="logo">
-    <img src="assets/logo-vegas.png" alt="Vegas"
+  return `<div class="side-brand">
+    <img class="emblem" src="assets/emblema-vegas.png" alt="Vegas Vigilância e Segurança"
       onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
     <div class="fallback" style="display:none">V</div>
-    <div class="brand"><span>Central CFTV</span></div>
-  </div>`;
+    <img class="wordmark" src="assets/wordmark-vegas.png" alt="VEGAS" onerror="this.style.display='none'">
+    <div class="sub">VIGILÂNCIA E SEGURANÇA</div>
+  </div>
+  <div class="rule-title">Sistema de CFTV</div>`;
 }
 
 function renderSidebar(active){
@@ -51,11 +53,12 @@ function showLoading(v){ document.getElementById('loading').classList.toggle('sh
 function toast(msg, type='ok'){
   let t = document.getElementById('toast');
   if(!t){ t=document.createElement('div'); t.id='toast';
-    t.style.cssText='position:fixed;bottom:24px;right:24px;z-index:400;padding:14px 20px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.4);transition:.3s;transform:translateY(80px);opacity:0';
+    t.style.cssText='position:fixed;bottom:24px;right:24px;z-index:400;padding:14px 20px;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.4);transition:.3s;transform:translateY(80px);opacity:0';
     document.body.appendChild(t);
   }
   t.textContent = msg;
-  t.style.background = type==='err' ? '#ef4444' : (type==='info'?'#0ea5e9':'#22c55e');
+  t.style.background = type==='err' ? '#ef4444' : (type==='info'?'#2f8cff':'#16a34a');
+  t.style.border = '1px solid rgba(255,255,255,.15)';
   t.style.color = '#fff';
   requestAnimationFrame(()=>{ t.style.transform='translateY(0)'; t.style.opacity='1'; });
   clearTimeout(t._h);
