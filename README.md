@@ -76,10 +76,16 @@ vegas-cftv/
    const API_URL = 'https://script.google.com/macros/s/AKfy.../exec';
    ```
 
-## Passo 4 — Adicionar a logo
+## Passo 4 — Identidade visual
 
-Coloque o arquivo da logo em `assets/logo-vegas.png`.
-(Enquanto não existir, o sistema mostra um "V" dourado no lugar.)
+O visual de todas as telas usa três arquivos em `assets/`:
+
+- `bg-vegas.jpg` — fundo da central de monitoramento (todas as páginas)
+- `emblema-vegas.png` — emblema metálico com fundo transparente
+- `wordmark-vegas.png` — o nome VEGAS em metal escovado
+
+Para trocar o visual, substitua esses arquivos mantendo os mesmos nomes.
+(Se o emblema faltar, o sistema mostra um "V" azul no lugar.)
 
 ## Passo 5 — Publicar o frontend no GitHub Pages
 

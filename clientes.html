@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Clientes — Central CFTV</title>
+<title>Clientes — Vegas Sistema de CFTV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -38,7 +41,7 @@ document.getElementById('main').innerHTML = `
       <button class="hamburger" onclick="toggleMenu()">☰</button>
       <div><h2>Clientes</h2><div class="sub"><span id="count">0</span> cliente(s) cadastrado(s)</div></div>
     </div>
-    <button class="btn sm" style="background:linear-gradient(135deg,var(--accent),var(--accent-2))" onclick="openForm()">
+    <button class="btn sm" onclick="openForm()">
       ${ICONS.plus} Novo Cliente</button>
   </div>
   <div class="toolbar">
@@ -163,7 +166,7 @@ function openForm(cli){
     </div>
   `, `
     <button class="btn ghost sm" onclick="closeModal()">Cancelar</button>
-    <button class="btn sm" style="background:linear-gradient(135deg,var(--accent),var(--accent-2))"
+    <button class="btn sm"
       onclick="salvar('${isEdit?c.ID:''}')">${isEdit?'Salvar alterações':'Cadastrar cliente'}</button>
   `);
   renderFotos();
