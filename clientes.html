@@ -49,6 +49,7 @@ document.getElementById('main').innerHTML = `
     <div class="search">${ICONS.search}
       <input id="q" type="text" placeholder="Buscar por número, nome, marca, modelo…" oninput="filtrar()">
     </div>
+    <button class="btn secondary sm" onclick="openRelatorio()">${ICONS.logs} Relatório por equipamento</button>
   </div>
   <div class="table-wrap" id="tableWrap"></div>
   <div class="card-list" id="cardList"></div>
@@ -272,6 +273,7 @@ async function openDetalhes(id){
           : `<div class="photo-frame"><div class="photo-empty">Nenhuma foto cadastrada</div></div>`;
       })()}
     `, `
+      <button class="btn danger sm" style="margin-right:auto" onclick="confirmarExclusao()">Excluir cliente</button>
       <button class="btn ghost sm" onclick="openForm(_cliAtual)">Editar</button>
       <button class="btn cyan sm" onclick="gerarLink('${c.ID}','${escapeHTML(c.NumeroCliente)}','${escapeHTML(c.Nome).replace(/'/g,"")}')">${ICONS.link} Gerar acesso para técnico</button>
     `);
@@ -350,6 +352,166 @@ async function revogar(token){
     if(r.ok){ toast('Acesso revogado!'); closeModal(); }
     else toast('Erro ao revogar','err');
   }catch(e){ toast('Falha de conexão','err'); }
+  finally{ showLoading(false); }
+}
+
+/* ---------- EXCLUSÃO (contrato cancelado) ---------- */
+function confirmarExclusao(){
+  const c = _cliAtual; if(!c) return;
+  const num = escapeHTML(c.NumeroCliente);
+  openModal('Excluir cliente', `
+    <div class="alert err" style="display:block">
+      Exclusão <b>definitiva</b> do cliente <b class="tag">${num}</b> — ${escapeHTML(c.Nome)}.<br>
+      Os dados, credenciais e fotos do Drive serão apagados e os links de técnico ativos serão revogados.
+      O registro da exclusão fica no Histórico.
+    </div>
+    <div class="field"><label>Motivo (opcional)</label><input id="ex_motivo" placeholder="Ex.: contrato cancelado em 10/2026"></div>
+    <div class="field"><label>Para confirmar, digite o número do cliente: <b class="tag">${num}</b></label>
+      <input id="ex_conf" autocomplete="off" oninput="document.getElementById('ex_btn').disabled = this.value.trim()!==String(_cliAtual.NumeroCliente).trim()"></div>
+  `, `
+    <button class="btn ghost sm" onclick="openDetalhes('${c.ID}')">Voltar</button>
+    <button class="btn danger sm" id="ex_btn" disabled onclick="excluirCliente()">Excluir definitivamente</button>
+  `);
+}
+
+async function excluirCliente(){
+  const c = _cliAtual;
+  const confirm = document.getElementById('ex_conf').value.trim();
+  const motivo = document.getElementById('ex_motivo').value.trim();
+  closeModal(); showLoading(true);
+  try{
+    const r = await api('delete',{ id:c.ID, confirm, motivo });
+    if(r.ok){ toast('Cliente excluído.'); _cliAtual=null; history.replaceState(null,'',location.pathname); await load(); }
+    else if(r.error==='CONFIRMACAO_INVALIDA') toast('Número de confirmação não confere.','err');
+    else if(r.error==='NAO_AUTORIZADO') logout();
+    else toast('Erro ao excluir','err');
+  }catch(e){ toast('Falha de conexão','err'); }
+  finally{ showLoading(false); }
+}
+
+/* ---------- RELATÓRIO POR EQUIPAMENTO ---------- */
+const normEq = v => String(v==null?'':v).trim().replace(/\s+/g,' ').toUpperCase();
+
+function equipIndex(){
+  const marcas = {};
+  CLIENTES.forEach(c=>{
+    const m = normEq(c.Marca) || '(SEM MARCA)';
+    const mo = normEq(c.Modelo) || '(SEM MODELO)';
+    marcas[m] = marcas[m] || { total:0, modelos:{} };
+    marcas[m].total++;
+    marcas[m].modelos[mo] = (marcas[m].modelos[mo]||0) + 1;
+  });
+  return marcas;
+}
+
+function openRelatorio(){
+  if(!CLIENTES.length){ toast('Nenhum cliente cadastrado.','err'); return; }
+  const idx = equipIndex();
+  const marcas = Object.keys(idx).sort();
+  openModal('Relatório por equipamento', `
+    <div class="grid2">
+      <div class="field"><label>Marca</label>
+        <select id="rel_marca" onchange="relModelos()">
+          ${marcas.map(m=>`<option value="${escapeHTML(m)}">${escapeHTML(m)} (${idx[m].total})</option>`).join('')}
+        </select></div>
+      <div class="field"><label>Modelo</label><select id="rel_modelo" onchange="relPreview()"></select></div>
+    </div>
+    <div class="section-title">Clientes encontrados: <span id="rel_count">0</span></div>
+    <div id="rel_lista" style="max-height:300px;overflow:auto"></div>
+  `, `
+    <button class="btn ghost sm" onclick="closeModal()">Fechar</button>
+    <button class="btn sm" id="rel_btn" onclick="baixarRelatorioPDF()">Baixar PDF</button>
+  `);
+  relModelos();
+}
+
+function relModelos(){
+  const m = document.getElementById('rel_marca').value;
+  const mods = equipIndex()[m].modelos;
+  const total = Object.values(mods).reduce((a,b)=>a+b,0);
+  document.getElementById('rel_modelo').innerHTML =
+    `<option value="">Todos os modelos (${total})</option>` +
+    Object.keys(mods).sort().map(mo=>`<option value="${escapeHTML(mo)}">${escapeHTML(mo)} (${mods[mo]})</option>`).join('');
+  relPreview();
+}
+
+function relFiltrados(){
+  const m = document.getElementById('rel_marca').value;
+  const mo = document.getElementById('rel_modelo').value;
+  return CLIENTES
+    .filter(c => (normEq(c.Marca)||'(SEM MARCA)')===m && (!mo || (normEq(c.Modelo)||'(SEM MODELO)')===mo))
+    .sort((a,b)=>String(a.NumeroCliente).localeCompare(String(b.NumeroCliente),'pt-BR',{numeric:true}));
+}
+
+function relPreview(){
+  const list = relFiltrados();
+  document.getElementById('rel_count').textContent = list.length;
+  document.getElementById('rel_btn').disabled = !list.length;
+  document.getElementById('rel_lista').innerHTML = list.length ? `<table><thead><tr>
+      <th>Cliente</th><th>Nome</th><th>Modelo</th><th>Câmeras</th></tr></thead><tbody>${list.map(c=>`<tr>
+      <td class="tag">${escapeHTML(c.NumeroCliente)}</td><td>${escapeHTML(c.Nome)}</td>
+      <td>${escapeHTML(c.Modelo)}</td><td>${escapeHTML(c.CamerasFuncionando)}/${escapeHTML(c.CamerasInstaladas)}</td>
+    </tr>`).join('')}</tbody></table>` : '<div class="empty-state">Nenhum cliente.</div>';
+}
+
+function loadScript(src){
+  return new Promise((ok,err)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=err; document.head.appendChild(s); });
+}
+async function ensureJsPDF(){
+  if(!window.jspdf) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if(!window.jspdf.jsPDF.API.autoTable) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+}
+async function imgDataURL(src){
+  try{
+    const b = await (await fetch(src)).blob();
+    return await new Promise(r=>{ const f=new FileReader(); f.onload=()=>r(f.result); f.readAsDataURL(b); });
+  }catch(e){ return null; }
+}
+
+async function baixarRelatorioPDF(){
+  const list = relFiltrados();
+  if(!list.length) return;
+  const marca = document.getElementById('rel_marca').value;
+  const modelo = document.getElementById('rel_modelo').value;
+  const filtro = marca + (modelo ? ' ' + modelo : ' (todos os modelos)');
+  showLoading(true);
+  try{
+    await ensureJsPDF();
+    const doc = new window.jspdf.jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+    const W = doc.internal.pageSize.getWidth();
+    const logo = await imgDataURL('assets/logo-vegas.png');
+    if(logo){ try{ doc.addImage(logo,'PNG',14,10,18,18); }catch(e){} }
+    const x0 = logo ? 36 : 14;
+    doc.setFont('helvetica','bold'); doc.setFontSize(15);
+    doc.text('Vegas Vigilância e Segurança - Central CFTV', x0, 17);
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    doc.text('Relatório de clientes por equipamento: ' + filtro, x0, 23);
+    const agora = new Date().toLocaleString('pt-BR');
+    doc.text(`Total: ${list.length} cliente(s)  |  Gerado em ${agora} por ${localStorage.getItem('vegas_nome')||''}`, x0, 28);
+
+    doc.autoTable({
+      startY: 34,
+      head: [['Nº', 'Nome', 'Endereço', 'Marca', 'Modelo', 'Tipo', 'Canais', 'Câmeras (func./inst.)', 'Status']],
+      body: list.map(c=>[
+        String(c.NumeroCliente||''), String(c.Nome||''), String(c.Endereco||''),
+        String(c.Marca||''), String(c.Modelo||''), String(c.Tipo||''), String(c.Canais||''),
+        `${c.CamerasFuncionando||0}/${c.CamerasInstaladas||0}`, String(c.Status||'Ativo')
+      ]),
+      styles: { fontSize:8, cellPadding:2 },
+      headStyles: { fillColor:[13,95,224] },
+      alternateRowStyles: { fillColor:[240,245,252] },
+      columnStyles: { 0:{cellWidth:16}, 2:{cellWidth:70}, 6:{halign:'center'}, 7:{halign:'center'} },
+      didDrawPage: d => {
+        doc.setFontSize(8);
+        doc.text(`Página ${doc.internal.getNumberOfPages()} - Uso interno`, W-14, doc.internal.pageSize.getHeight()-6, { align:'right' });
+      }
+    });
+
+    const slug = filtro.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
+    doc.save(`relatorio_${slug}_${new Date().toISOString().slice(0,10)}.pdf`);
+    api('logRelatorio',{ filtro, total:list.length }).catch(()=>{});
+    toast('PDF gerado!');
+  }catch(e){ toast('Falha ao gerar o PDF','err'); }
   finally{ showLoading(false); }
 }
 

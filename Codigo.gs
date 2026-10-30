@@ -109,6 +109,7 @@ function handle_(e) {
       case 'revoke':       return json_(revokeLink_(req, user));
       case 'logs':         return json_(getLogs_(req));
       case 'stats':        return json_(getStats_(req));
+      case 'logRelatorio': return json_(logRelatorio_(req, user));
       default:             return json_({ ok:false, error:'ACAO_DESCONHECIDA' });
     }
   } catch (err) {
@@ -181,7 +182,7 @@ function listClientes_(req) {
   const data = readClientes_();
   const q = String(req.q||'').toLowerCase().trim();
   let list = data.map(c => ({
-    ID:c.ID, NumeroCliente:c.NumeroCliente, Nome:c.Nome, Marca:c.Marca,
+    ID:c.ID, NumeroCliente:c.NumeroCliente, Nome:c.Nome, Endereco:c.Endereco, Marca:c.Marca,
     Modelo:c.Modelo, Tipo:c.Tipo, Canais:c.Canais,
     CamerasInstaladas:c.CamerasInstaladas, CamerasFuncionando:c.CamerasFuncionando,
     Status:c.Status
@@ -253,19 +254,47 @@ function updateCliente_(req, user) {
 }
 
 function deleteCliente_(req, user) {
-  // Desativa (não apaga) — mais seguro para auditoria.
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName(SH_CLIENTES);
-  const rows = sh.getDataRange().getValues();
-  for (let i=1; i<rows.length; i++) {
-    if (String(rows[i][0]) === String(req.id)) {
-      sh.getRange(i+1, 18).setValue('Inativo');
-      sh.getRange(i+1, 20).setValue(new Date());
-      log_(user, 'DESATIVACAO', req.id, '');
+  // Exclusão definitiva (cliente com contrato cancelado). Exige o número do cliente como confirmação.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sh = ss.getSheetByName(SH_CLIENTES);
+    const rows = sh.getDataRange().getValues();
+    for (let i=1; i<rows.length; i++) {
+      if (String(rows[i][0]) !== String(req.id)) continue;
+      const numero = String(rows[i][1]).trim();
+      if (numero !== String(req.confirm||'').trim()) return { ok:false, error:'CONFIRMACAO_INVALIDA' };
+      const nome = String(rows[i][2]);
+      const motivo = String(req.motivo||'').trim();
+
+      trashOrfas_(parseFotos_(rows[i][20], rows[i][14]), []);
+      revogaTokensCliente_(req.id);
+      sh.deleteRow(i+1);
+
+      log_(user, 'EXCLUSAO', req.id, 'Cliente ' + numero + ' - ' + nome + (motivo ? ' | Motivo: ' + motivo : ''));
       return { ok:true };
     }
+    return { ok:false, error:'NAO_ENCONTRADO' };
+  } finally {
+    lock.releaseLock();
   }
-  return { ok:false, error:'NAO_ENCONTRADO' };
+}
+
+function revogaTokensCliente_(clienteID) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_TOKENS);
+  const rows = sh.getDataRange().getValues();
+  for (let i=1; i<rows.length; i++) {
+    const st = String(rows[i][4]);
+    if (String(rows[i][1]) === String(clienteID) && (st === 'ATIVO' || st === 'UTILIZADO')) {
+      sh.getRange(i+1, 5).setValue('REVOGADO');
+    }
+  }
+}
+
+function logRelatorio_(req, user) {
+  log_(user, 'RELATORIO_EQUIP', '', String(req.filtro||'') + ' | ' + (Number(req.total)||0) + ' cliente(s)');
+  return { ok:true };
 }
 
 function readClientes_() {
