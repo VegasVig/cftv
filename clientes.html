@@ -479,7 +479,7 @@ async function baixarRelatorioPDF(){
     await ensureJsPDF();
     const doc = new window.jspdf.jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
     const W = doc.internal.pageSize.getWidth();
-    const logo = await imgDataURL('assets/logo-vegas.png');
+    const logo = await imgDataURL('assets/emblema-vegas.png');
     if(logo){ try{ doc.addImage(logo,'PNG',14,10,18,18); }catch(e){} }
     const x0 = logo ? 36 : 14;
     doc.setFont('helvetica','bold'); doc.setFontSize(15);
