@@ -39,14 +39,11 @@ function setup() {
     'ID','NumeroCliente','Nome','Endereco','Marca','Modelo','Tipo',
     'Canais','CamerasInstaladas','CamerasFuncionando','UsuarioCFTV','SenhaCFTV',
     'IP_URL','Porta','Foto','Observacoes','ObsTecnicas','Status',
-    'DataCadastro','UltimaAtualizacao','Fotos'
+    'DataCadastro','UltimaAtualizacao','Fotos','Propriedade'
   ]);
-  // Migração: se a planilha já existia sem a coluna 'Fotos', adiciona.
   const shCli = ss.getSheetByName(SH_CLIENTES);
-  const head = shCli.getRange(1,1,1,shCli.getLastColumn()).getValues()[0];
-  if (head.indexOf('Fotos') === -1) {
-    shCli.getRange(1, shCli.getLastColumn()+1).setValue('Fotos');
-  }
+  ensureCol_(shCli, 'Fotos');
+  ensureCol_(shCli, 'Propriedade');
   ensureSheet_(ss, SH_USUARIOS, ['Usuario','SenhaHash','Nome','Ativo']);
   ensureSheet_(ss, SH_TOKENS,   ['Token','ClienteID','CriadoEm','ExpiraEm','Status','CriadoPor']);
   ensureSheet_(ss, SH_LOGS,     ['DataHora','Operadora','Acao','ClienteID','Detalhe']);
@@ -74,6 +71,20 @@ function ensureSheet_(ss, name, headers) {
   }
   return sh;
 }
+
+// Garante a coluna no cabeçalho (cria no fim se faltar) e devolve o índice 1-based.
+function ensureCol_(sh, nome) {
+  const head = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0];
+  const i = head.indexOf(nome);
+  if (i !== -1) return i+1;
+  const col = sh.getLastColumn()+1;
+  sh.getRange(1, col).setValue(nome).setFontWeight('bold');
+  return col;
+}
+
+const PROPRIEDADES = ['Aluguel','Próprio'];
+function normProp_(v) { return PROPRIEDADES.indexOf(String(v||'')) !== -1 ? String(v) : ''; }
+function normStatus_(v) { return String(v) === 'Inativo' ? 'Inativo' : 'Ativo'; }
 
 // ====== ROTEADOR HTTP ======
 function doGet(e)  { return handle_(e); }
@@ -185,7 +196,7 @@ function listClientes_(req) {
     ID:c.ID, NumeroCliente:c.NumeroCliente, Nome:c.Nome, Endereco:c.Endereco, Marca:c.Marca,
     Modelo:c.Modelo, Tipo:c.Tipo, Canais:c.Canais,
     CamerasInstaladas:c.CamerasInstaladas, CamerasFuncionando:c.CamerasFuncionando,
-    Status:c.Status
+    Status:normStatus_(c.Status), Propriedade:normProp_(c.Propriedade)
   }));
   if (q) {
     list = list.filter(c =>
@@ -215,8 +226,9 @@ function createCliente_(req, user) {
     id, s_(c.NumeroCliente), s_(c.Nome), s_(c.Endereco), s_(c.Marca), s_(c.Modelo),
     s_(c.Tipo), s_(c.Canais), s_(c.CamerasInstaladas), s_(c.CamerasFuncionando),
     s_(c.UsuarioCFTV), s_(c.SenhaCFTV), s_(c.IP_URL), s_(c.Porta), primeira,
-    s_(c.Observacoes), s_(c.ObsTecnicas), c.Status||'Ativo', now, now, fotosJson
+    s_(c.Observacoes), s_(c.ObsTecnicas), normStatus_(c.Status), now, now, fotosJson
   ]);
+  sh.getRange(sh.getLastRow(), ensureCol_(sh, 'Propriedade')).setValue(normProp_(c.Propriedade));
   log_(user, 'CADASTRO', id, 'Cliente ' + s_(c.NumeroCliente));
   return { ok:true, id:id };
 }
@@ -234,7 +246,7 @@ function updateCliente_(req, user) {
         2:c.NumeroCliente,3:c.Nome,4:c.Endereco,5:c.Marca,6:c.Modelo,7:c.Tipo,
         8:c.Canais,9:c.CamerasInstaladas,10:c.CamerasFuncionando,11:c.UsuarioCFTV,
         12:c.SenhaCFTV,13:c.IP_URL,14:c.Porta,16:c.Observacoes,
-        17:c.ObsTecnicas,18:c.Status
+        17:c.ObsTecnicas,18:(c.Status !== undefined ? normStatus_(c.Status) : undefined)
       };
       Object.keys(map).forEach(col => {
         if (map[col] !== undefined) sh.getRange(r, Number(col)).setValue(map[col]);
@@ -245,6 +257,7 @@ function updateCliente_(req, user) {
         sh.getRange(r, 21).setValue(fotos.length ? JSON.stringify(fotos) : '');
         sh.getRange(r, 15).setValue(fotos[0] || '');
       }
+      if (c.Propriedade !== undefined) sh.getRange(r, ensureCol_(sh, 'Propriedade')).setValue(normProp_(c.Propriedade));
       sh.getRange(r, 20).setValue(new Date());
       log_(user, 'ATUALIZACAO', req.id, '');
       return { ok:true };
