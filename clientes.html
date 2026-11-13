@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=20261111a">
+<link rel="stylesheet" href="css/style.css?v=20261113a">
 </head>
 <body>
 <div id="app"></div>
@@ -85,6 +85,14 @@ function propBadge(p){
   return `<span class="badge ${cls}">${propLabel(p)}</span>`;
 }
 
+const BASES = ['Volta Redonda','Niterói'];
+const baseLabel = b => BASES.includes(b) ? b : 'Não informado';
+const baseSugerida = nome => /(^|[^A-Za-zÀ-ÿ])NT(?![A-Za-zÀ-ÿ])/i.test(String(nome||'')) ? 'Niterói' : 'Volta Redonda';
+function baseBadge(b){
+  const cls = b==='Niterói'?'nt':b==='Volta Redonda'?'vr':'semprop';
+  return `<span class="badge ${cls}">${baseLabel(b)}</span>`;
+}
+
 function render(list){
   const tw = document.getElementById('tableWrap');
   const cl = document.getElementById('cardList');
@@ -93,11 +101,12 @@ function render(list){
     return;
   }
   tw.innerHTML = `<table><thead><tr>
-    <th>Cliente</th><th>Nome</th><th>Equipamento</th><th>Propriedade</th><th>Canais</th><th>Câmeras</th><th>Status</th><th></th>
+    <th>Cliente</th><th>Nome</th><th>Base</th><th>Equipamento</th><th>Propriedade</th><th>Canais</th><th>Câmeras</th><th>Status</th><th></th>
     </tr></thead><tbody>${list.map(c=>`
     <tr>
       <td class="tag">${escapeHTML(c.NumeroCliente)}</td>
       <td>${escapeHTML(c.Nome)}</td>
+      <td>${baseBadge(c.Base)}</td>
       <td>${escapeHTML(c.Marca)} ${escapeHTML(c.Modelo)}</td>
       <td>${propBadge(c.Propriedade)}</td>
       <td>${escapeHTML(c.Canais)}</td>
@@ -110,6 +119,7 @@ function render(list){
     <div class="ccard">
       <div class="row"><b class="tag">${escapeHTML(c.NumeroCliente)}</b>${statusBadge(c.Status)}</div>
       <div class="row"><span>Nome</span><b>${escapeHTML(c.Nome)}</b></div>
+      <div class="row"><span>Base</span>${baseBadge(c.Base)}</div>
       <div class="row"><span>Equipamento</span>${escapeHTML(c.Marca)} ${escapeHTML(c.Modelo)}</div>
       <div class="row"><span>Propriedade</span>${propBadge(c.Propriedade)}</div>
       <div class="row"><span>Câmeras</span>${escapeHTML(c.CamerasFuncionando)}/${escapeHTML(c.CamerasInstaladas)} · ${escapeHTML(c.Canais)} canais</div>
@@ -142,7 +152,11 @@ function openForm(cli){
     <div class="section-title">Identificação</div>
     <div class="grid2">
       <div class="field"><label>Número do cliente *</label><input id="f_num" value="${v('NumeroCliente')}"></div>
-      <div class="field"><label>Nome do cliente *</label><input id="f_nome" value="${v('Nome')}"></div>
+      <div class="field"><label>Nome do cliente *</label><input id="f_nome" value="${v('Nome')}" oninput="sugerirBase()"></div>
+      <div class="field"><label>Base *</label><select id="f_base" onchange="this.dataset.manual='1'" ${c.Base?'data-manual="1"':''}>
+        <option value="" ${c.Base?'':'selected'} disabled>Selecione…</option>
+        ${BASES.map(b=>`<option ${sel(c.Base,b)}>${b}</option>`).join('')}
+      </select></div>
       <div class="field"><label>Equipamento é *</label><select id="f_prop">
         <option value="" ${c.Propriedade?'':'selected'} disabled>Selecione…</option>
         <option ${sel(c.Propriedade,'Aluguel')}>Aluguel</option><option ${sel(c.Propriedade,'Próprio')}>Próprio</option>
@@ -224,6 +238,11 @@ function addFotos(ev){
 }
 function removeFoto(i){ _fotos.splice(i,1); renderFotos(); }
 
+function sugerirBase(){
+  const s = document.getElementById('f_base');
+  if(s && !s.dataset.manual) s.value = baseSugerida(document.getElementById('f_nome').value);
+}
+
 async function salvar(id){
   const g = k => (document.getElementById(k)||{}).value || '';
   const cliente = {
@@ -231,9 +250,10 @@ async function salvar(id){
     Marca:g('f_marca'), Modelo:g('f_modelo'), Tipo:g('f_tipo'), Canais:g('f_canais'),
     CamerasInstaladas:g('f_cinst'), CamerasFuncionando:g('f_cfunc'),
     UsuarioCFTV:g('f_user'), SenhaCFTV:g('f_pass'), IP_URL:g('f_ip'), Porta:g('f_porta'),
-    ObsTecnicas:g('f_obst'), Propriedade:g('f_prop'), Status:g('f_status')||'Ativo', Fotos:_fotos
+    ObsTecnicas:g('f_obst'), Propriedade:g('f_prop'), Base:g('f_base'), Status:g('f_status')||'Ativo', Fotos:_fotos
   };
   if(!cliente.NumeroCliente || !cliente.Nome){ toast('Preencha número e nome.','err'); return; }
+  if(!cliente.Base){ toast('Informe a base: Volta Redonda ou Niterói.','err'); return; }
   if(!cliente.Propriedade){ toast('Informe se o equipamento é Aluguel ou Próprio.','err'); return; }
   closeModal(); showLoading(true);
   try{
@@ -258,7 +278,7 @@ async function openDetalhes(id){
       <div class="detail-grid">
         ${di('Número', c.NumeroCliente)}${di('Nome', c.Nome)}
         ${di('Endereço', c.Endereco)}${di('Status', String(c.Status)==='Inativo'?'Inativo':'Ativo')}
-        ${di('Propriedade do equipamento', propLabel(c.Propriedade))}
+        ${di('Base', baseLabel(c.Base))}${di('Propriedade do equipamento', propLabel(c.Propriedade))}
       </div>
       ${c.Observacoes?`<div style="margin-top:12px">${di('Observações', c.Observacoes)}</div>`:''}
 
@@ -411,7 +431,9 @@ const normEq = v => String(v==null?'':v).trim().replace(/\s+/g,' ').toUpperCase(
 function relBase(){
   const st = (document.getElementById('rel_status')||{}).value || '';
   const pr = (document.getElementById('rel_prop')||{}).value || '';
+  const bs = (document.getElementById('rel_base')||{}).value || '';
   return CLIENTES.filter(c =>
+    (!bs || baseLabel(c.Base)===bs) &&
     (!st || (String(c.Status)==='Inativo'?'Inativo':'Ativo')===st) &&
     (!pr || propLabel(c.Propriedade)===pr));
 }
@@ -431,6 +453,12 @@ function equipIndex(base){
 function openRelatorio(){
   if(!CLIENTES.length){ toast('Nenhum cliente cadastrado.','err'); return; }
   openModal('Relatório por equipamento', `
+    <div class="field"><label>Base</label>
+      <select id="rel_base" onchange="relMarcas()">
+        <option value="">Todas (Volta Redonda + Niterói)</option>
+        ${BASES.map(b=>`<option>${b}</option>`).join('')}
+        ${CLIENTES.some(c=>!BASES.includes(c.Base))?'<option>Não informado</option>':''}
+      </select></div>
     <div class="grid2">
       <div class="field"><label>Status</label>
         <select id="rel_status" onchange="relMarcas()">
@@ -494,8 +522,8 @@ function relPreview(){
   document.getElementById('rel_count').textContent = list.length;
   document.getElementById('rel_btn').disabled = !list.length;
   document.getElementById('rel_lista').innerHTML = list.length ? `<table><thead><tr>
-      <th>Cliente</th><th>Nome</th><th>Equipamento</th><th>Propriedade</th><th>Câmeras</th><th>Status</th></tr></thead><tbody>${list.map(c=>`<tr>
-      <td class="tag">${escapeHTML(c.NumeroCliente)}</td><td>${escapeHTML(c.Nome)}</td>
+      <th>Cliente</th><th>Nome</th><th>Base</th><th>Equipamento</th><th>Propriedade</th><th>Câmeras</th><th>Status</th></tr></thead><tbody>${list.map(c=>`<tr>
+      <td class="tag">${escapeHTML(c.NumeroCliente)}</td><td>${escapeHTML(c.Nome)}</td><td>${baseBadge(c.Base)}</td>
       <td>${escapeHTML(c.Marca)} ${escapeHTML(c.Modelo)}</td><td>${propBadge(c.Propriedade)}</td>
       <td>${escapeHTML(c.CamerasFuncionando)}/${escapeHTML(c.CamerasInstaladas)}</td><td>${statusBadge(c.Status)}</td>
     </tr>`).join('')}</tbody></table>` : '<div class="empty-state">Nenhum cliente.</div>';
@@ -522,12 +550,14 @@ async function baixarRelatorioPDF(){
   const modelo = document.getElementById('rel_modelo').value;
   const st = document.getElementById('rel_status').value;
   const pr = document.getElementById('rel_prop').value;
+  const bs = document.getElementById('rel_base').value;
   const filtro = [
+    'Base: ' + (bs || 'Todas'),
     marca ? marca + (modelo ? ' ' + modelo : ' (todos os modelos)') : 'Todas as marcas',
     st ? 'Status: ' + st : '', pr ? 'Propriedade: ' + pr : ''
   ].filter(Boolean).join(' | ');
   const cnt = f => list.filter(f).length;
-  const resumo = `Ativos: ${cnt(c=>String(c.Status)!=='Inativo')}  |  Inativos: ${cnt(c=>String(c.Status)==='Inativo')}  |  Aluguel: ${cnt(c=>c.Propriedade==='Aluguel')}  |  Próprio: ${cnt(c=>c.Propriedade==='Próprio')}  |  Não informado: ${cnt(c=>c.Propriedade!=='Aluguel'&&c.Propriedade!=='Próprio')}`;
+  const resumo = `Volta Redonda: ${cnt(c=>c.Base==='Volta Redonda')}  |  Niterói: ${cnt(c=>c.Base==='Niterói')}  |  Ativos: ${cnt(c=>String(c.Status)!=='Inativo')}  |  Inativos: ${cnt(c=>String(c.Status)==='Inativo')}  |  Aluguel: ${cnt(c=>c.Propriedade==='Aluguel')}  |  Próprio: ${cnt(c=>c.Propriedade==='Próprio')}  |  Não informado: ${cnt(c=>c.Propriedade!=='Aluguel'&&c.Propriedade!=='Próprio')}`;
   showLoading(true);
   try{
     await ensureJsPDF();
@@ -546,9 +576,9 @@ async function baixarRelatorioPDF(){
 
     doc.autoTable({
       startY: 38,
-      head: [['Nº', 'Nome', 'Endereço', 'Marca', 'Modelo', 'Tipo', 'Canais', 'Câmeras (func./inst.)', 'Propriedade', 'Status']],
+      head: [['Nº', 'Nome', 'Base', 'Endereço', 'Marca', 'Modelo', 'Tipo', 'Canais', 'Câmeras (func./inst.)', 'Propriedade', 'Status']],
       body: list.map(c=>[
-        String(c.NumeroCliente||''), String(c.Nome||''), String(c.Endereco||''),
+        String(c.NumeroCliente||''), String(c.Nome||''), baseLabel(c.Base), String(c.Endereco||''),
         String(c.Marca||''), String(c.Modelo||''), String(c.Tipo||''), String(c.Canais||''),
         `${c.CamerasFuncionando||0}/${c.CamerasInstaladas||0}`, propLabel(c.Propriedade),
         String(c.Status)==='Inativo'?'Inativo':'Ativo'
@@ -556,9 +586,9 @@ async function baixarRelatorioPDF(){
       styles: { fontSize:8, cellPadding:2 },
       headStyles: { fillColor:[13,95,224] },
       alternateRowStyles: { fillColor:[240,245,252] },
-      columnStyles: { 0:{cellWidth:16}, 2:{cellWidth:62}, 6:{halign:'center'}, 7:{halign:'center'}, 8:{halign:'center'}, 9:{halign:'center'} },
+      columnStyles: { 0:{cellWidth:16}, 2:{cellWidth:24}, 3:{cellWidth:56}, 7:{halign:'center'}, 8:{halign:'center'}, 9:{halign:'center'}, 10:{halign:'center'} },
       didParseCell: d => {
-        if(d.section==='body' && d.column.index===9 && d.cell.raw==='Inativo') d.cell.styles.textColor=[185,28,28];
+        if(d.section==='body' && d.column.index===10 && d.cell.raw==='Inativo') d.cell.styles.textColor=[185,28,28];
       },
       didDrawPage: d => {
         doc.setFontSize(8);

@@ -39,11 +39,12 @@ function setup() {
     'ID','NumeroCliente','Nome','Endereco','Marca','Modelo','Tipo',
     'Canais','CamerasInstaladas','CamerasFuncionando','UsuarioCFTV','SenhaCFTV',
     'IP_URL','Porta','Foto','Observacoes','ObsTecnicas','Status',
-    'DataCadastro','UltimaAtualizacao','Fotos','Propriedade'
+    'DataCadastro','UltimaAtualizacao','Fotos','Propriedade','Base'
   ]);
   const shCli = ss.getSheetByName(SH_CLIENTES);
   ensureCol_(shCli, 'Fotos');
   ensureCol_(shCli, 'Propriedade');
+  migrarBase();
   ensureSheet_(ss, SH_USUARIOS, ['Usuario','SenhaHash','Nome','Ativo']);
   ensureSheet_(ss, SH_TOKENS,   ['Token','ClienteID','CriadoEm','ExpiraEm','Status','CriadoPor']);
   ensureSheet_(ss, SH_LOGS,     ['DataHora','Operadora','Acao','ClienteID','Detalhe']);
@@ -85,6 +86,43 @@ function ensureCol_(sh, nome) {
 const PROPRIEDADES = ['Aluguel','Próprio'];
 function normProp_(v) { return PROPRIEDADES.indexOf(String(v||'')) !== -1 ? String(v) : ''; }
 function normStatus_(v) { return String(v) === 'Inativo' ? 'Inativo' : 'Ativo'; }
+
+const BASES = ['Volta Redonda','Niterói'];
+function normBase_(v) { return BASES.indexOf(String(v||'')) !== -1 ? String(v) : ''; }
+// "NT" como palavra isolada no nome = Niterói (ex.: "NT - Padaria", "Mercado NT"). Não pega "CENTRO", "SANTOS".
+function baseSugerida_(nome) { return /(^|[^A-Za-zÀ-ÿ])NT(?![A-Za-zÀ-ÿ])/i.test(String(nome||'')) ? 'Niterói' : 'Volta Redonda'; }
+
+// Preenche a coluna Base só onde está vazia. Roda sozinha uma vez (no primeiro 'list' após a implantação);
+// pode ser executada manualmente pelo editor para reprocessar vazios.
+function migrarBase() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SH_CLIENTES);
+    const col = ensureCol_(sh, 'Base');
+    const n = sh.getLastRow() - 1;
+    let alterados = 0;
+    if (n > 0) {
+      const nomes = sh.getRange(2, 3, n, 1).getValues();
+      const range = sh.getRange(2, col, n, 1);
+      const bases = range.getValues().map((r,i) => {
+        if (normBase_(r[0])) return [r[0]];
+        alterados++;
+        return [baseSugerida_(nomes[i][0])];
+      });
+      range.setValues(bases);
+    }
+    PropertiesService.getScriptProperties().setProperty('BASE_MIGRADA', 'SIM');
+    if (alterados) log_('SISTEMA', 'MIGRACAO_BASE', '', alterados + ' cliente(s) marcados (NT no nome = Niterói, demais = Volta Redonda)');
+    Logger.log('Base preenchida em ' + alterados + ' cliente(s).');
+    return alterados;
+  } finally {
+    lock.releaseLock();
+  }
+}
+function garanteBase_() {
+  if (PropertiesService.getScriptProperties().getProperty('BASE_MIGRADA') !== 'SIM') migrarBase();
+}
 
 // ====== ROTEADOR HTTP ======
 function doGet(e)  { return handle_(e); }
@@ -190,13 +228,14 @@ function logout_(token) {
 
 // ====== CLIENTES (CRUD) ======
 function listClientes_(req) {
+  garanteBase_();
   const data = readClientes_();
   const q = String(req.q||'').toLowerCase().trim();
   let list = data.map(c => ({
     ID:c.ID, NumeroCliente:c.NumeroCliente, Nome:c.Nome, Endereco:c.Endereco, Marca:c.Marca,
     Modelo:c.Modelo, Tipo:c.Tipo, Canais:c.Canais,
     CamerasInstaladas:c.CamerasInstaladas, CamerasFuncionando:c.CamerasFuncionando,
-    Status:normStatus_(c.Status), Propriedade:normProp_(c.Propriedade)
+    Status:normStatus_(c.Status), Propriedade:normProp_(c.Propriedade), Base:normBase_(c.Base)
   }));
   if (q) {
     list = list.filter(c =>
@@ -228,7 +267,9 @@ function createCliente_(req, user) {
     s_(c.UsuarioCFTV), s_(c.SenhaCFTV), s_(c.IP_URL), s_(c.Porta), primeira,
     s_(c.Observacoes), s_(c.ObsTecnicas), normStatus_(c.Status), now, now, fotosJson
   ]);
-  sh.getRange(sh.getLastRow(), ensureCol_(sh, 'Propriedade')).setValue(normProp_(c.Propriedade));
+  const linha = sh.getLastRow();
+  sh.getRange(linha, ensureCol_(sh, 'Propriedade')).setValue(normProp_(c.Propriedade));
+  sh.getRange(linha, ensureCol_(sh, 'Base')).setValue(normBase_(c.Base) || baseSugerida_(c.Nome));
   log_(user, 'CADASTRO', id, 'Cliente ' + s_(c.NumeroCliente));
   return { ok:true, id:id };
 }
@@ -258,6 +299,7 @@ function updateCliente_(req, user) {
         sh.getRange(r, 15).setValue(fotos[0] || '');
       }
       if (c.Propriedade !== undefined) sh.getRange(r, ensureCol_(sh, 'Propriedade')).setValue(normProp_(c.Propriedade));
+      if (normBase_(c.Base)) sh.getRange(r, ensureCol_(sh, 'Base')).setValue(normBase_(c.Base));
       sh.getRange(r, 20).setValue(new Date());
       log_(user, 'ATUALIZACAO', req.id, '');
       return { ok:true };

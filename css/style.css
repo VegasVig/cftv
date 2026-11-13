@@ -242,6 +242,8 @@ tbody tr:hover{background:rgba(47,140,255,.07)}
 .badge.aluguel{background:rgba(245,158,11,.15);color:#fcd34d}
 .badge.proprio{background:rgba(56,189,248,.15);color:#7dd3fc}
 .badge.semprop{background:rgba(239,68,68,.12);color:#fca5a5}
+.badge.vr{background:rgba(99,102,241,.16);color:#a5b4fc}
+.badge.nt{background:rgba(20,184,166,.16);color:#5eead4}
 .tag{font-family:var(--mono);font-size:13px;color:var(--accent-2)}
 
 .card-list{display:none}
@@ -500,6 +502,8 @@ tbody tr:hover{background:rgba(47,140,255,.07)}
 [data-theme="light"] .badge.aluguel{background:rgba(245,158,11,.16);color:#b45309}
 [data-theme="light"] .badge.proprio{background:rgba(14,165,233,.14);color:#0369a1}
 [data-theme="light"] .badge.semprop{background:rgba(239,68,68,.12);color:#b91c1c}
+[data-theme="light"] .badge.vr{background:rgba(99,102,241,.14);color:#4338ca}
+[data-theme="light"] .badge.nt{background:rgba(20,184,166,.14);color:#0f766e}
 [data-theme="light"] .modal-bg{background:rgba(20,35,60,.45)}
 [data-theme="light"] .modal{background:linear-gradient(180deg,#ffffff,#f5f8fc);box-shadow:0 0 30px rgba(30,100,220,.15),var(--shadow)}
 [data-theme="light"] .cred-box,
