@@ -455,6 +455,8 @@ function getStats_(req) {
   const ativos = clientes.filter(c => String(c.Status) !== 'Inativo');
   const totalCanais = ativos.reduce((a,c)=>a + (Number(c.Canais)||0), 0);
   const totalCameras = ativos.reduce((a,c)=>a + (Number(c.CamerasInstaladas)||0), 0);
+  const clientesLocados = ativos.filter(c => normProp_(c.Propriedade) === 'Aluguel').length;
+  const clientesProprios = ativos.filter(c => normProp_(c.Propriedade) === 'Próprio').length;
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const tok = ss.getSheetByName(SH_TOKENS).getDataRange().getValues();
@@ -469,7 +471,9 @@ function getStats_(req) {
   return { ok:true, stats:{
     totalClientes:clientes.length, clientesAtivos:ativos.length,
     totalEquipamentos:ativos.length, totalCameras:totalCameras, totalCanais:totalCanais,
-    linksAtivos:linksAtivos, linksExpirados:linksExpirados, ultimosClientes:ultimos
+    linksAtivos:linksAtivos, linksExpirados:linksExpirados, ultimosClientes:ultimos,
+    clientesLocados:clientesLocados, clientesProprios:clientesProprios,
+    clientesSemPropriedade:ativos.length - clientesLocados - clientesProprios
   }};
 }
 

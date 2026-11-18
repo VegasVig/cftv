@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=20261117a">
+<link rel="stylesheet" href="css/style.css?v=20261118a">
 </head>
 <body>
 <div id="app"></div>
@@ -52,6 +52,9 @@ async function load(){
       statCard('shield', s.clientesAtivos, 'Clientes ativos','green') +
       statCard('cam', s.totalCameras, 'Câmeras cadastradas','cyan') +
       statCard('dash', s.totalCanais, 'Canais totais') +
+      statCard('cam', s.clientesLocados ?? '—', 'Clientes locados','amber') +
+      statCard('shield', s.clientesProprios ?? '—', 'Clientes com equipamento próprio','cyan') +
+      statCard('logs', s.clientesSemPropriedade ?? '—', 'Propriedade não informada','red') +
       statCard('link', s.linksAtivos, 'Links ativos','cyan') +
       statCard('logs', s.linksExpirados, 'Links expirados');
 

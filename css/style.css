@@ -218,6 +218,8 @@ button{font-family:inherit;cursor:pointer}
 .stat .lbl{color:var(--txt-dim);font-size:12px;margin-top:8px}
 .stat.cyan .ico{color:var(--cyan)}
 .stat.green .ico{color:var(--green)}
+.stat.amber .ico{color:#f59e0b}
+.stat.red .ico{color:#ef4444}
 
 /* ---------- Toolbar (busca) ---------- */
 .toolbar{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap;align-items:center}
